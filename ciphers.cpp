@@ -200,14 +200,17 @@ vector<string> splitBySpaces(const string& s) {
 }
 
 string joinWithSpaces(const vector<string>& words) {
+  // Checking if our vector is empty
+  if (words.empty()) { 
+    return "";
+  }
   // Adding in our first word
   string joint = words.at(0);
 
   // Looping through every word and adding a space before it and the next word
   for (size_t i = 1; i < words.size(); i++) {
-    joint + ' ' + words.at(i);
+    joint += ' ' + words.at(i);
   }
-  cout << "JOINT: " << joint << endl;
   return joint;
 }
 
@@ -244,7 +247,7 @@ void caesarDecryptCommand(const vector<string>& dict) {
     count = numWordsIn(decryptAttempt, dict);
 
     // Valid decryptions printed
-    if (count > decryptAttempt.size()) {
+    if (count > decryptAttempt.size() / 2) {
       decryptFlag = true;
       cout << joinWithSpaces(decryptAttempt) << endl;
     }
