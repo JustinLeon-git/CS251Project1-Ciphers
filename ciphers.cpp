@@ -36,14 +36,26 @@ int main() {
   string command;
   vector<string> dictionary;
 
-  // Reading in our dictionary for decryption later
+  // Reading in our dictionary for caesar decryption later
   ifstream dictFile("dictionary.txt");
   string word;
   while (getline(dictFile, word)) {
     dictionary.push_back(word);
-    cout << word << endl;
   }
 
+  // Reading in our quadgram scorer for our subst cipher decryption later
+  ifstream quadgramFile("english_quadgrams.txt");
+  string line;
+  vector<string> quadgrams;
+  vector<int> countNum;
+  while (getline(quadgramFile, line)) {
+    quadgrams.push_back(clean(line.substr(0,4)));
+    countNum.push_back(stoi(line.substr(5, line.size() - 5)));
+  }
+  QuadgramScorer scorer(quadgrams, countNum);
+
+  // Making a prototype to use in main
+  vector<char> decryptSubstCipher(const QuadgramScorer& scorer, const string& ciphertext);
 
   cout << "Welcome to Ciphers!" << endl;
   cout << "-------------------" << endl;
@@ -51,7 +63,7 @@ int main() {
 
   // Command loop
   do {
-    // Commands for user input
+    // Prompts commands for user input
     printMenu();
     cout << endl << "Enter a command (case does not matter): ";
 
@@ -68,13 +80,49 @@ int main() {
       getline(cin, seed_str);
       Random::seed(stoi(seed_str));
 
-    // Encrypting
+    // Caesar Encrypting
     } else if (command == "C" || command == "c") {
       caesarEncryptCommand();
 
-    // Decrypting
+    // Caesar Decrypting
     } else if (command == "D" || command == "d") {
       caesarDecryptCommand(dictionary);
+
+    // Subst Encrypting
+    } else if (command == "A" || command == "a") {
+      applyRandSubstCipherCommand();
+
+    // English Scorer
+    } else if (command == "E" || command == "e") {
+      computeEnglishnessCommand(scorer);
+
+    // Subst Decrypting
+    } else if (command == "S" || command == "s") {
+      decryptSubstCipherCommand(scorer);
+
+    // Subst Decrypting (File)
+    } else if (command == "F" || command == "f") {
+      string inputFilename, outputFilename;
+      
+      // Getting filenames from user input
+      cout << "Input file name: ";
+      getline(cin, inputFilename);
+      cout << "Output file name: ";
+      getline(cin, outputFilename);
+
+      // Parsing our file's decrypting text
+      ifstream encrypted(inputFilename);
+      string encryptedStr, unencryptedStr;
+      while (getline(encrypted, line)) {
+        encryptedStr += line + "\n";
+      }
+
+      // Decrypting text
+      vector<char> decryptKey = decryptSubstCipher(scorer, encryptedStr);
+      unencryptedStr = applySubstCipher(decryptKey, encryptedStr);
+      ofstream unencrypted(outputFilename);
+      unencrypted << unencryptedStr;
+      unencrypted.close();
     }
 
     cout << endl;
@@ -263,12 +311,24 @@ void caesarDecryptCommand(const vector<string>& dict) {
 #pragma region SubstEnc
 
 string applySubstCipher(const vector<char>& cipher, const string& s) {
-  // TODO: student
-  return "";
+  string encrypted = s;
+
+  // Loop through entire unencrypted string
+  for (size_t i = 0; i < s.size(); i++) {
+    // Checks if its a letter
+    if (isalpha(s.at(i))) {
+      // Switches the letter with the encrypted alias
+      encrypted.at(i) = cipher.at(ALPHABET.find(toupper(s.at(i))));
+    }
+  }
+  return encrypted;
 }
 
 void applyRandSubstCipherCommand() {
-  // TODO: student
+  string inputText;
+  cout << "Text to encrypt: ";
+  getline(cin, inputText);
+  cout << "Encrypted text: " << applySubstCipher(genRandomSubstCipher(), inputText);
 }
 
 #pragma endregion SubstEnc
@@ -276,22 +336,91 @@ void applyRandSubstCipherCommand() {
 #pragma region SubstDec
 
 double scoreString(const QuadgramScorer& scorer, const string& s) {
-  // TODO: student
-  return 0.0;
+  double score = 0.0;
+  string cleaned;
+  // Removing all non-letters
+  for (char c : s) {
+    if (isalpha(c)) {
+      cleaned.push_back(toupper(c));
+    }
+  }
+
+  // Edge case for our indexing later
+  if (cleaned.size() < 4) {
+    return 0.0;
+  }
+
+  // Loops through our letters for quadgrams
+  for (size_t i = 0; i <= cleaned.size() - 4; i++) {
+    score += scorer.getScore(cleaned.substr(i, 4));
+  }
+  return score;
 }
 
 void computeEnglishnessCommand(const QuadgramScorer& scorer) {
-  // TODO: student
+  string inputText;
+  cout << "Enter text to score: ";
+  getline(cin, inputText);
+  cout << "Score: " << scoreString(scorer, inputText) << endl;
 }
 
-vector<char> decryptSubstCipher(const QuadgramScorer& scorer,
-                                const string& ciphertext) {
-  // TODO: student
-  return vector<char>{};
+vector<char> decryptSubstCipher(const QuadgramScorer& scorer, const string& ciphertext) {
+  vector<char> bestKey;
+  int randInt1, randInt2;
+  double score, scoreSwap, bestScore, curScore;
+  char tempChar;
+
+  // Loop through the climbing algorithm to find best maximum
+  for (int i = 0; i < 55; i++) {
+    vector<char> key = genRandomSubstCipher();
+    // Go through 1000 different keys to find good key
+    for (int i = 0; i < 1700; i++) {
+      vector<char> keySwap = key;
+
+      // Getting random integers for key swap
+      randInt1 = Random::randInt(25);
+      randInt2 = Random::randInt(25);
+      while (randInt1 == randInt2) {
+        randInt2 = Random::randInt(25);
+      }
+
+      // Swapping keySwap vals
+      tempChar = keySwap.at(randInt1);
+      keySwap.at(randInt1) = keySwap.at(randInt2);
+      keySwap.at(randInt2) = tempChar;
+
+      // Scoring decrypted string and determining which key is better
+      score = scoreString(scorer, applySubstCipher(key, ciphertext));
+      scoreSwap = scoreString(scorer, applySubstCipher(keySwap, ciphertext));
+      if (scoreSwap > score) {
+        key = keySwap;
+      }
+    }
+    // Now we check if we reached a better local maximum
+    curScore = scoreString(scorer, applySubstCipher(key, ciphertext));
+    if (i == 0 || curScore > bestScore) {
+      bestKey = key;
+      bestScore = curScore;
+    }
+  }
+  return bestKey;
 }
 
 void decryptSubstCipherCommand(const QuadgramScorer& scorer) {
-  // TODO: student
+  string inputText;
+
+  // Getting and cleansing user input
+  cout << "Input encrypted text: ";
+  getline(cin, inputText);
+  for (char& c : inputText) {
+    if (isalpha(c)) {
+      c = toupper(c);
+    }
+  }
+
+  // Now we decrypt our input
+  vector<char> key = decryptSubstCipher(scorer, inputText);
+  cout << "Decrypted text: " << applySubstCipher(key, inputText) << endl;
 }
 
 #pragma endregion SubstDec
