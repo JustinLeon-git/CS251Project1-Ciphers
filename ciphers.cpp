@@ -25,10 +25,7 @@ const string ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 // files.
 
 // When you add a new helper function, make sure to declare it up here!
-
-/**
- * Print instructions for using the program.
- */
+// Print instructions for using the program.
 void printMenu();
 
 int main() {
